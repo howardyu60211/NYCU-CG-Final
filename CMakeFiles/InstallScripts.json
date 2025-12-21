@@ -1,0 +1,14 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/howard_yu/Codes/CG/Final/cmake_install.cmake",
+		"/home/howard_yu/Codes/CG/Final/src/cmake_install.cmake",
+		"/home/howard_yu/Codes/CG/Final/extern/glad/cmake_install.cmake",
+		"/home/howard_yu/Codes/CG/Final/extern/glfw/cmake_install.cmake",
+		"/home/howard_yu/Codes/CG/Final/extern/glfw/src/cmake_install.cmake",
+		"/home/howard_yu/Codes/CG/Final/extern/glm/cmake_install.cmake",
+		"/home/howard_yu/Codes/CG/Final/extern/glm/glm/cmake_install.cmake",
+		"/home/howard_yu/Codes/CG/Final/extern/stb/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
