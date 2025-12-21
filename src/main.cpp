@@ -831,6 +831,9 @@ float getTrackHeight(float x, float z) {
 // [NEW] Lap Timer UI (Top Right) - Refined V4 (No Sector Values, Bold Best)
 void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, float s2, int s2St, float s3,
                     int s3St) {
+  (void)s1;
+  (void)s2;
+  (void)s3;  // Suppress unused warnings
   int winW, winH;
   glfwGetFramebufferSize(ctx.window, &winW, &winH);
   glEnable(GL_SCISSOR_TEST);
@@ -952,7 +955,9 @@ void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, 
     int cx = sx + i * sectionW + (width - availW) / 2;
     int cy = syHeader + (headerH - charH) / 2;
 
-    drawChar(cx, cy, 'S', txt);
+    // [Modified] Bold 'S'
+    int boldCW = defaultCW + S(1);  // Thicker
+    drawCharEx(cx, cy, 'S', txt, boldCW);
     drawDigit(cx + S(10), cy, S(8), i + 1, txt);
   }
 
