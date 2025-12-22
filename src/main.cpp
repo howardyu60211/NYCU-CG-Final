@@ -50,7 +50,8 @@ int currentLap = 0;
 bool passedCheckpoint = true;
 float currentLapTime = 0.0f;
 float lastLapTime = 0.0f;
-float bestLapTime = 9999.0f;  // High default
+float bestLapTime = 9999.0f;      // High default
+float currentPenaltyTime = 0.0f;  // [NEW] Penalty Accumulator
 
 // [NEW] Sector Timing
 // State: 0=None, 1=Yellow (Slower/NoRecord), 2=Green (PB)
@@ -611,7 +612,6 @@ void setupObjects() {
   car = new Car(carObj);
   car->setPosition(startPos);
   car->setHeading(glm::radians(90.0f));
-  car->setHeading(glm::radians(90.0f));
   car->setWheels(wheelObjs, g_carWheelOffsets);
 
   // [NEW] Setup Brake Light
@@ -798,6 +798,8 @@ float getTrackHeight(float x, float z) {
       }
     }
   }
+
+  // Grid Search if cache missed
   const std::vector<int>& candidates = trackGrid.getCandidates(x, z);
   for (int i : candidates) {
     if (i == lastFoundTriangleIndex) continue;
@@ -824,13 +826,31 @@ float getTrackHeight(float x, float z) {
       }
     }
   }
-  if (foundAny) return bestHeight;
-  return -10000.0f;
+
+  return foundAny ? bestHeight : -10000.0f;
+}
+
+// [NEW] Helper to get the name of the mesh under the car
+std::string getTrackMeshName() {
+  if (ctx.models.empty()) return "None";
+  Model* track = ctx.models[0];
+  int numTriangles = (int)track->positions.size() / 9;
+
+  // Use lastFoundTriangleIndex if valid (from getTrackHeight's last run)
+  if (lastFoundTriangleIndex != -1 && lastFoundTriangleIndex < numTriangles) {
+    int vStart = lastFoundTriangleIndex * 3;
+    for (const auto& mesh : track->meshes) {
+      if (vStart >= mesh.first && vStart < mesh.first + mesh.count) {
+        return mesh.name;
+      }
+    }
+  }
+  return "Unknown";
 }
 
 // [NEW] Lap Timer UI (Top Right) - Refined V4 (No Sector Values, Bold Best)
-void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, float s2, int s2St, float s3,
-                    int s3St) {
+void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, float s2, int s2St, float s3, int s3St,
+                    float penalty) {
   (void)s1;
   (void)s2;
   (void)s3;  // Suppress unused warnings
@@ -839,6 +859,7 @@ void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, 
   glEnable(GL_SCISSOR_TEST);
 
   float scale = (float)winH / 1000.0f;
+
   if (scale < 0.5f) scale = 0.5f;
   auto S = [&](int v) { return (int)(v * scale); };
 
@@ -881,50 +902,59 @@ void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, 
   int charW = S(8);
   int charH = S(10);
 
-  // Helper to draw char with custom stroke width
-  auto drawCharEx = [&](int cx, int cy, char c, glm::vec3 col, int strokeW) {
+  // Helper to draw char with custom stroke width and size
+  auto drawCharEx = [&](int cx, int cy, int w, int h, char c, glm::vec3 col, int strokeW) {
     if (strokeW < 1) strokeW = 1;
 
     if (c == 'S') {
-      drawRect(cx, cy + charH - strokeW, charW, strokeW, col);
-      drawRect(cx, cy + charH / 2, charW, strokeW, col);
-      drawRect(cx, cy, charW, strokeW, col);
-      drawRect(cx, cy + charH / 2, strokeW, charH / 2, col);
-      drawRect(cx + charW - strokeW, cy, strokeW, charH / 2, col);
+      drawRect(cx, cy + h - strokeW, w, strokeW, col);
+      drawRect(cx, cy + h / 2, w, strokeW, col);
+      drawRect(cx, cy, w, strokeW, col);
+      drawRect(cx, cy + h / 2, strokeW, h / 2, col);
+      drawRect(cx + w - strokeW, cy, strokeW, h / 2, col);
     } else if (c == 'B') {
-      drawRect(cx, cy, strokeW, charH, col);
-      drawRect(cx, cy + charH - strokeW, charW, strokeW, col);
-      drawRect(cx, cy + charH / 2, charW, strokeW, col);
-      drawRect(cx, cy, charW, strokeW, col);
-      drawRect(cx + charW - strokeW, cy, strokeW, charH, col);
+      drawRect(cx, cy, strokeW, h, col);
+      drawRect(cx, cy + h - strokeW, w, strokeW, col);
+      drawRect(cx, cy + h / 2, w, strokeW, col);
+      drawRect(cx, cy, w, strokeW, col);
+      drawRect(cx + w - strokeW, cy, strokeW, h, col);
     } else if (c == 'E') {
-      drawRect(cx, cy, strokeW, charH, col);
-      drawRect(cx, cy + charH - strokeW, charW, strokeW, col);
-      drawRect(cx, cy + charH / 2, charW, strokeW, col);
-      drawRect(cx, cy, charW, strokeW, col);
+      drawRect(cx, cy, strokeW, h, col);
+      drawRect(cx, cy + h - strokeW, w, strokeW, col);
+      drawRect(cx, cy + h / 2, w, strokeW, col);
+      drawRect(cx, cy, w, strokeW, col);
     } else if (c == 'T') {
-      drawRect(cx + charW / 2 - strokeW / 2, cy, strokeW, charH, col);
-      drawRect(cx, cy + charH - strokeW, charW, strokeW, col);
+      drawRect(cx + w / 2 - strokeW / 2, cy, strokeW, h, col);
+      drawRect(cx, cy + h - strokeW, w, strokeW, col);
     } else if (c == '/') {
       int steps = 4;
-      int stepH = charH / steps;
+      int stepH = h / steps;
       for (int k = 0; k < steps; k++) {
         drawRect(cx + k * S(2), cy + k * stepH, strokeW * 2, stepH + 1, col);
       }
     } else if (c == '-') {
-      drawRect(cx, cy + charH / 2, charW, strokeW, col);
+      drawRect(cx, cy + h / 2, w, strokeW, col);
+    } else if (c == '+') {
+      drawRect(cx, cy + h / 2, w, strokeW, col);
+      drawRect(cx + w / 2 - strokeW / 2, cy + S(1), strokeW, h - S(2), col);
+    } else if (c == '.') {
+      drawRect(cx + w / 2 - strokeW, cy, strokeW * 2, strokeW * 2, col);
+    } else if (c >= '0' && c <= '9') {
+      drawDigit(cx, cy, h / 2, c - '0', col);
     }
   };
 
   int defaultCW = S(1);
   if (defaultCW < 1) defaultCW = 1;
 
-  auto drawChar = [&](int cx, int cy, char c, glm::vec3 col) { drawCharEx(cx, cy, c, col, defaultCW); };
+  auto drawChar = [&](int cx, int cy, char c, glm::vec3 col) { drawCharEx(cx, cy, charW, charH, c, col, defaultCW); };
 
-  auto drawWordEx = [&](int cx, int cy, const char* str, glm::vec3 col, int strokeW) {
+  auto drawWordEx = [&](int cx, int cy, const char* str, glm::vec3 col, int strokeW, float scale = 1.0f) {
+    int w = (int)(charW * scale);
+    int h = (int)(charH * scale);
     while (*str) {
-      drawCharEx(cx, cy, *str, col, strokeW);
-      cx += charW + S(4);
+      drawCharEx(cx, cy, w, h, *str, col, strokeW);
+      cx += w + S(2) * scale;
       str++;
     }
   };
@@ -956,8 +986,9 @@ void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, 
     int cy = syHeader + (headerH - charH) / 2;
 
     // [Modified] Bold 'S'
+    // [Modified] Bold 'S'
     int boldCW = defaultCW + S(1);  // Thicker
-    drawCharEx(cx, cy, 'S', txt, boldCW);
+    drawCharEx(cx, cy, charW, charH, 'S', txt, boldCW);
     drawDigit(cx + S(10), cy, S(8), i + 1, txt);
   }
 
@@ -1028,7 +1059,19 @@ void renderLapTimer(int lap, float curTime, float bestTime, float s1, int s1St, 
   };
 
   int rx = x + w - S(25);
-  drawTimeFull(rx, bodyCenterY, S(14), curTime, colText);
+
+  // [Modified] Swap Positions: Timer Left, Penalty Right
+  // Move Timer Left by ~S(140) to make room
+  drawTimeFull(rx - S(100), bodyCenterY, S(14), curTime, colText);
+
+  // [NEW] Draw Penalty (Right Side)
+  if (penalty > 0.0f) {
+    char pBuf[32];
+    sprintf(pBuf, "+%d", (int)penalty);
+    // Draw at rx - S(100) (Right side)
+    // Scale 2.5f for bigger penalty text
+    drawWordEx(rx - S(50), bodyCenterY - S(10), pBuf, glm::vec3(1.0f, 0.2f, 0.2f), S(2), 2.5f);
+  }
 
   // 4. Footer (Best Time)
   drawRect(x + border, syFooter, w - border * 2, footerH - border, colHeaderDef);
@@ -1185,14 +1228,6 @@ int main() {
     glfwPollEvents();
     processInput(window);
 
-    if (enableRain) {
-      // 下雨：路面變滑 (This logic is now handled by Roughness Map in shader + GLB)
-      // ctx.objects[0]->material.roughness = 0.15f; // REMOVED: Don't make grass shiny!
-    } else {
-      // 晴天：路面變粗糙
-      // ctx.objects[0]->material.roughness = 0.85f;
-    }
-
     float currentFrame = (float)glfwGetTime();
     float deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
@@ -1217,9 +1252,10 @@ int main() {
         break;
       case COUNTDOWN:
         // [NEW] Jump Start Check
-        if (car && (std::abs(car->getSpeed()) > 0.1f || inputState.throttleValue > 0.1f)) {
+        if (car && (std::abs(car->getSpeed()) > 0.1f)) {
           jumpStartPenalty = true;
-          penaltyTimer = 1.0f;  // Flash for 3 seconds
+          penaltyTimer = 1.0f;         // Flash HUD (Visual)
+          currentPenaltyTime = 10.0f;  // HARDCODED Penalty
         }
 
         if (stateTimer >= 1.0f) {
@@ -1234,9 +1270,10 @@ int main() {
         break;
       case READY:
         // [NEW] Jump Start Check
-        if (car && (std::abs(car->getSpeed()) > 0.1f || inputState.throttleValue > 0.1f)) {
+        if (car && (std::abs(car->getSpeed()) > 0.1f)) {
           jumpStartPenalty = true;
-          penaltyTimer = 3.0f;  // Flash for 3 seconds
+          penaltyTimer = 1.0f;         // Flash HUD
+          currentPenaltyTime = 10.0f;  // HARDCODED Penalty
         }
 
         if (stateTimer >= readyDelay) {
@@ -1247,20 +1284,6 @@ int main() {
       case RACING:
         // Race is on!
         break;
-    }
-
-    // Input Interception
-    InputState effectiveInput = inputState;
-    if (currentGameState != RACING) {
-      // Allow reving engine but punish with flash?
-      // Actually user requested "early start" penalty.
-      // If we disable throttle here, car won't move, so "jump start" technically impossible unless we allow movement.
-      // But if we allow movement, they can cheat.
-      // Usually games allow movement but teleport back or give penalty time.
-      // OR, visual penalty AND simply block movement.
-      // "提早起步" implies they TRIED to move.
-      // So detecting input is enough even if we block movement.
-      effectiveInput.up = false;
     }
 
     // --- Traffic Light 3D Illumination ---
@@ -1299,7 +1322,25 @@ int main() {
     // Logic Update
     if (car) {
       // Update Car Physics
-      car->update(deltaTime, effectiveInput, [&](float x, float z) { return getTrackHeight(x, z); });
+      // [Updated] Pass Mesh Name Checker
+      // Update Car Physics
+      car->update(deltaTime, inputState, [&](float x, float z) -> std::pair<float, int> {
+        float h = getTrackHeight(x, z);
+        // Check Surface (getTrackHeight updates lastFoundTriangleIndex)
+        std::string name = getTrackMeshName();
+        int type = 0;
+        // Logic: specific mesh names trigger off-road
+        if (name.find("grass") != std::string::npos || name.find("sand") != std::string::npos) {
+          type = 1;
+        }
+
+        // This lambda is called 5 times per frame! We CANNOT accumulate time here.
+        // Return type to update main loop variable.
+        return {h, type};
+      });
+
+      // [NEW] Logic Update for Penalty
+      // Penalty Logic REMOVED
 
       // Update Camera (Free vs Follow)
       if (useFreeCam) {
@@ -1356,8 +1397,10 @@ int main() {
       // Trigger when X > 106.5 and Z is within range [-189, -169]
       if (pos.x > 106.5f && pos.z > -189.0f && pos.z < -169.0f && passedCheckpoint) {
         // [New] Lap Time Logic
-        if (currentLap > 0) {  // If completing a valid lap (Lap 0 is start grid)
-          lastLapTime = currentLapTime;
+        if (currentLap > 0) {                                 // If completing a valid lap (Lap 0 is start grid)
+          lastLapTime = currentLapTime + currentPenaltyTime;  // Apply Penalty
+          currentPenaltyTime = 0.0f;                          // Reset Penalty
+
           if (lastLapTime < bestLapTime) bestLapTime = lastLapTime;
 
           // S3 Calculation: Total - TimeAtS2
@@ -1538,7 +1581,9 @@ int main() {
     renderF1HUD(window, car->getSpeed(), inputState, useFPP, penaltyTimer);
 
     // [NEW] Timer HUD (Top Right)
-    renderLapTimer(currentLap, currentLapTime, bestLapTime, curS1, s1State, curS2, s2State, curS3, s3State);
+    // [NEW] Timer HUD (Top Right)
+    renderLapTimer(currentLap, currentLapTime, bestLapTime, curS1, s1State, curS2, s2State, curS3, s3State,
+                   currentPenaltyTime);  // Use Actual Penalty Value
 
 #ifdef __APPLE__
     glFlush();

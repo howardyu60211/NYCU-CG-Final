@@ -8,6 +8,7 @@
 struct SubDraw {
   int first;
   int count;
+  std::string name;  // [NEW] Mesh Name for logic
 
   // --- 貼圖索引 (Texture Indices) ---
   int baseColorTexIndex = -1;

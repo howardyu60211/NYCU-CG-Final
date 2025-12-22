@@ -25,7 +25,8 @@ class Car {
   Car(Object* renderObject);
   ~Car() = default;
 
-  void update(float deltaTime, const InputState& input, const std::function<float(float, float)>& heightMap);
+  void update(float deltaTime, const InputState& input,
+              const std::function<std::pair<float, int>(float, float)>& heightMap);
 
   std::vector<glm::vec3> wheels;  // Physics suspension points
   // Wheel objects (FL, FR, RL, RR)
@@ -49,6 +50,7 @@ class Car {
   Object* renderObject;  // Pointer to the scene object (has transform matrix)
   std::vector<Object*> wheelRenderObjects;
   std::vector<glm::mat4> wheelModelOffsets;  // Initial Transform relative to Car Center
+  bool isOffRoad();
 
   // Brake Light
   Object* brakeLightObject = nullptr;
@@ -69,6 +71,7 @@ class Car {
 
   // Config
   const float maxSpeed = 60.0f;              // Increased significantly (was 60.0f)
+  const float maxOffTrackSpeed = 30.0f;      // Maximum speed for off-track
   const float acceleration = 30.0f;          // [Modified] Reduced from 50.0f to 25.0f for smoother control
   const float coastingDeceleration = 12.5f;  // Natural coasting
   const float brakingDeceleration = 30.0f;   // Stronger braking for high speeds

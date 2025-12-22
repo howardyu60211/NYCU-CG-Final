@@ -31,7 +31,8 @@ void Car::setBrakeLight(Object* obj, Model* model) {
 // Helper mix function
 glm::vec3 lerp(glm::vec3 a, glm::vec3 b, float f) { return a + f * (b - a); }
 
-void Car::update(float deltaTime, const InputState& input, const std::function<float(float, float)>& heightMap) {
+void Car::update(float deltaTime, const InputState& input,
+                 const std::function<std::pair<float, int>(float, float)>& heightMap) {
   // 1. Update Steering Angle (Analog + Speed Sensitivity)
   float lowSpeedThreshold = 20.0f;
   float highSpeedThreshold = 45.0f;
@@ -112,14 +113,9 @@ void Car::update(float deltaTime, const InputState& input, const std::function<f
   speed = std::clamp(speed, -maxSpeed / 2.0f, maxSpeed);
 
   // 3. Update Heading (Bicycle Model Kinematics)
-  float effectiveSteering = steeringAngle;
-  // Oversteer logic removed per user request
-  // if (input.brake && std::abs(speed) > 5.0f && std::abs(steeringAngle) > 0.1f) {
-  //   effectiveSteering *= 1.5f;
-  // }
 
   if (std::abs(speed) > 0.001f) {
-    float turnRate = (speed / wheelbase) * std::tan(effectiveSteering);
+    float turnRate = (speed / wheelbase) * std::tan(steeringAngle);
     headingAngle += turnRate * deltaTime;
   }
 
@@ -152,17 +148,63 @@ void Car::update(float deltaTime, const InputState& input, const std::function<f
   }
 
   // 5. Update Position using Velocity Vector
-  // [NEW] Boundary Check
+  // [NEW] Boundary Check / Off-Road Physics
   const float INVALID_HEIGHT = -5000.0f;
   glm::vec3 nextPos = position + velocity * deltaTime;
-  float nextH = heightMap(nextPos.x, nextPos.z);
 
-  if (nextH < INVALID_HEIGHT) {
-    // Off-track detected! Stop the car.
-    velocity = glm::vec3(0.0f);
-    // Do not update position
+  std::pair<float, int> mapData = heightMap(nextPos.x, nextPos.z);
+  float nextH = mapData.first;
+  int surfaceType = mapData.second;  // 0=Road, 1=OffRoad
+
+  bool isOffTrack = (nextH < INVALID_HEIGHT) || (surfaceType == 1);
+
+  if (isOffTrack) {
+    // Off-track Logic (Grass/Sand)
+
+    float grassDrag = 0.3f; // 草地阻力很大
+    this->speed -= this->speed * grassDrag * deltaTime; 
+
+    // 1. Deceleration Penalty (-20.0f per second)
+    // We apply this against the current speed direction
+    if (speed > 0.0f) {
+      speed -= 15.0f * deltaTime;
+      if (speed < 0.0f) speed = 0.0f;
+    } else if (speed < 0.0f) {
+      speed += 15.0f * deltaTime;
+      if (speed > 0.0f) speed = 0.0f;
+    }
+
+    // 2. Speed Cap (30.0f)
+    float offRoadLimit = 15.0f;
+    if (speed > offRoadLimit) {
+      speed -= 15.0f * deltaTime;  // Strong braking to force it down
+      if (speed < offRoadLimit) speed = offRoadLimit;
+    } else if (speed < -offRoadLimit) {
+      speed += 15.0f * deltaTime;
+      if (speed > -offRoadLimit) speed = -offRoadLimit;
+    }
+
+    // Recalculate velocity with new speed
+    // Maintain direction but reduce magnitude
+    if (std::abs(speed) > 0.001f) {
+      velocity = glm::normalize(velocity) * speed;
+    } else {
+      velocity = glm::vec3(0.0f);
+    }
+
+    // 3. Allow Movement (don't stop)
+    // If height is invalid, keep previous Y (flat ground assumption outside track)
+    // or use a default ground level if position.y is way off.
+    // For now, nextH is invalid, so we don't update Y from map.
+    // We just move X/Z.
+    position.x += velocity.x * deltaTime;
+    position.z += velocity.z * deltaTime;
+    // position.y remains unchanged (flat driving off-track)
+
   } else {
+    // On Track
     position += velocity * deltaTime;
+    // Y will be updated by heightMap in Step 6 (Terrain Following)
   }
 
   // 6. Terrain Following (4-Wheel Alignment)
@@ -184,11 +226,17 @@ void Car::update(float deltaTime, const InputState& input, const std::function<f
   for (int i = 0; i < 4; i++) {
     glm::vec3 wheelPos = position + wheelOffsets[i];
     // Sample height for this wheel
-    float h = heightMap(wheelPos.x, wheelPos.z);
+    std::pair<float, int> wData = heightMap(wheelPos.x, wheelPos.z);
+    float h = wData.first;
 
     // [NEW] Clamp wheel height if off-track (to prevent visual artifact)
     if (h < INVALID_HEIGHT) {
-      h = position.y - 0.35f;  // Assume wheel is slightly below car center
+      // If the car body is off-track, we kept its Y.
+      // We should keep wheels relative to car body or at the same "fake floor".
+      // Since we didn't update position.y in step 5 for off-track,
+      // position.y is the last valid height.
+      // Let's set wheel height relative to that.
+      h = position.y - 0.35f;
     }
 
     wheelPos.y = h;

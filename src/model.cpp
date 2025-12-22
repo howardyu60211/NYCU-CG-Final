@@ -234,6 +234,7 @@ Model* Model::fromGLBFile(const std::string& filename) {
 
         // Build Mesh
         SubDraw submesh;
+        submesh.name = node.name.empty() ? mesh.name : node.name;  // Use Node name if available, else Mesh name
         submesh.first = model->positions.size() / 3;
 
         glm::mat3 normalMatrix = glm::mat3(glm::transpose(glm::inverse(globalTransform)));
@@ -561,6 +562,7 @@ Model* Model::fromObjectFile(const std::string& filename) {
     const auto& indices = group.second;
 
     SubDraw submesh;
+    submesh.name = "OBJ_Mesh";  // Fallback for OBJ
     submesh.first = model->positions.size() / 3;
     submesh.baseColorTexIndex = (matId >= 0 && matId < (int)matToTexIndex.size()) ? matToTexIndex[matId] : -1;
 
@@ -738,9 +740,8 @@ Model* Model::loadSplitGLB(const std::string& filename, const std::vector<std::s
       transformForMesh = currentGlobalTransform;
     } else {
       // For split models, we bake the accumulating local transform
-      // If this is the split root, nextLocalAcc was reset to Identity (or LocalT? No, Identity logic in next iteration)
-      // Wait, 'nextLocalAcc' is for Children.
-      // For THIS mesh:
+      // If this is the split root, nextLocalAcc was reset to Identity (or LocalT? No, Identity logic in next
+      // iteration) Wait, 'nextLocalAcc' is for Children. For THIS mesh:
       if (isSplitRoot) {
         transformForMesh = glm::mat4(1.0f);  // Baked vertices should be local to Axle (Identity)
       } else {
