@@ -1,0 +1,40 @@
+file(REMOVE_RECURSE
+  "../bin/RacingGame"
+  "../bin/RacingGame.pdb"
+  "CMakeFiles/RacingGame.dir/link.d"
+  "CMakeFiles/RacingGame.dir/Programs/GeometryProgram.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/GeometryProgram.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/MiniMapProgram.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/MiniMapProgram.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/bloom.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/bloom.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/example.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/example.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/light.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/light.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/rain.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/rain.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/shadow.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/shadow.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/skybox.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/skybox.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/Programs/smoke.cpp.o"
+  "CMakeFiles/RacingGame.dir/Programs/smoke.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/camera.cpp.o"
+  "CMakeFiles/RacingGame.dir/camera.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/car.cpp.o"
+  "CMakeFiles/RacingGame.dir/car.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/gl_helper.cpp.o"
+  "CMakeFiles/RacingGame.dir/gl_helper.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/main.cpp.o"
+  "CMakeFiles/RacingGame.dir/main.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/model.cpp.o"
+  "CMakeFiles/RacingGame.dir/model.cpp.o.d"
+  "CMakeFiles/RacingGame.dir/opengl_context.cpp.o"
+  "CMakeFiles/RacingGame.dir/opengl_context.cpp.o.d"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/RacingGame.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()
