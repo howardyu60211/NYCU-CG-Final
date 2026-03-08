@@ -1,3 +1,0 @@
-[ 48%] Built target glfw
-[ 94%] Built target RacingGame
-[100%] Built target glm_shared
